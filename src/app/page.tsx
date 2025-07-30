@@ -1,103 +1,217 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState } from 'react';
+import { RawTask, ProcessedTask, AIProcessingRequest, AIProcessingResponse } from '@/types';
+import { generateId } from '@/lib/utils';
+import TaskInput from '@/components/TaskInput';
+import TaskResults from '@/components/TaskResults';
+import LoadingState from '@/components/LoadingState';
+import SampleTasksLoader from '@/components/SampleTasksLoader';
+import { Brain, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [tasks, setTasks] = useState<RawTask[]>([]);
+  const [processedTasks, setProcessedTasks] = useState<ProcessedTask[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleTasksChange = (newTasks: RawTask[]) => {
+    setTasks(newTasks);
+    setError(null);
+    setSuccess(null);
+  };
+
+  const processTasksWithAI = async () => {
+    if (tasks.length === 0) {
+      setError('Please add at least one task to process.');
+      return;
+    }
+
+    const tasksWithContent = tasks.filter(task => task.description.trim().length > 0);
+    if (tasksWithContent.length === 0) {
+      setError('Please add content to at least one task.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const request: AIProcessingRequest = {
+        tasks: tasksWithContent
+      };
+
+      const response = await fetch('/api/process-tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
+
+      const data: AIProcessingResponse = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process tasks');
+      }
+
+      setProcessedTasks(data.processedTasks);
+      setSuccess(`Successfully processed ${data.processedTasks.length} task${data.processedTasks.length !== 1 ? 's' : ''}!`);
+      
+      // Scroll to results
+      setTimeout(() => {
+        document.getElementById('results-section')?.scrollIntoView({ 
+          behavior: 'smooth' 
+        });
+      }, 100);
+
+    } catch (err) {
+      console.error('Error processing tasks:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const clearResults = () => {
+    setProcessedTasks([]);
+    setSuccess(null);
+  };
+
+  const validTasksCount = tasks.filter(task => task.description.trim().length > 0).length;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center gap-3">
+            <Brain className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Smart Task Summarizer + Tagger
+              </h1>
+              <p className="text-gray-600">
+                Transform messy task descriptions into organized, prioritized action items using AI
+              </p>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p>{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <p>{success}</p>
+          </div>
+        )}
+
+        {/* Sample Tasks Loader */}
+        {tasks.length === 0 && (
+          <SampleTasksLoader 
+            onLoadSampleTasks={setTasks}
+            disabled={isProcessing}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        )}
+
+        {/* Task Input Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <TaskInput
+            tasks={tasks}
+            onTasksChange={handleTasksChange}
+            isProcessing={isProcessing}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+          {/* Process Button */}
+          {tasks.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {validTasksCount} task{validTasksCount !== 1 ? 's' : ''} ready for processing
+                </div>
+                <button
+                  onClick={processTasksWithAI}
+                  disabled={isProcessing || validTasksCount === 0}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  <Brain className="w-5 h-5" />
+                  {isProcessing ? 'Processing...' : 'Process with AI'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Loading State */}
+        {isProcessing && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <LoadingState message="Analyzing tasks and generating summaries, tags, and priorities..." />
+          </div>
+        )}
+
+        {/* Results Section */}
+        {processedTasks.length > 0 && (
+          <div id="results-section" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <TaskResults
+              tasks={processedTasks}
+              onClear={clearResults}
+            />
+          </div>
+        )}
+
+        {/* Instructions */}
+        {tasks.length === 0 && processedTasks.length === 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">How it works</h3>
+            <div className="grid md:grid-cols-3 gap-4 text-sm">
+              <div className="text-center p-4 border border-gray-100 rounded-lg">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <span className="text-blue-600 font-semibold">1</span>
+                </div>
+                <h4 className="font-medium text-gray-900 mb-1">Input Tasks</h4>
+                <p className="text-gray-600">Add messy, unstructured task descriptions from meetings, notes, or anywhere</p>
+              </div>
+              <div className="text-center p-4 border border-gray-100 rounded-lg">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <span className="text-blue-600 font-semibold">2</span>
+                </div>
+                <h4 className="font-medium text-gray-900 mb-1">AI Processing</h4>
+                <p className="text-gray-600">GPT-4o-mini analyzes and creates clear summaries with smart tags and priorities</p>
+              </div>
+              <div className="text-center p-4 border border-gray-100 rounded-lg">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <span className="text-blue-600 font-semibold">3</span>
+                </div>
+                <h4 className="font-medium text-gray-900 mb-1">Export Results</h4>
+                <p className="text-gray-600">Download organized tasks as CSV or JSON for your project management tools</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="bg-white border-t border-gray-200 mt-16">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center text-sm text-gray-500">
+            <p>Built with Next.js, TypeScript, Tailwind CSS, and OpenAI GPT-4o-mini</p>
+            <p className="mt-1">Transform your messy tasks into organized action items</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
